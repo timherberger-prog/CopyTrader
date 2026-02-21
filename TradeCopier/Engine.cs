@@ -209,6 +209,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 instrument,
                 action,
                 OrderType.Market,
+                OrderEntry.Automated,
                 TimeInForce.Day,
                 quantity,
                 0,
