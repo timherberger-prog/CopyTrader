@@ -333,7 +333,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 if (instrumentKey == null || instrumentKey.Length == 0)
                     continue;
 
-                leadQuantityByInstrument[instrumentKey] = ToSignedQuantity(position.MarketPosition, position.Quantity);
+                leadQuantityByInstrument[instrumentKey] = GetSignedQuantity(position.MarketPosition, position.Quantity);
             }
         }
 
@@ -350,7 +350,8 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 ? leadQuantityByInstrument[instrumentKey]
                 : 0;
 
-            int delta = CalculateLeadDelta(execution, instrumentKey, previousQty);
+            int currentQty = GetLeadPositionQuantity(instrumentKey);
+            int delta = currentQty - previousQty;
             if (delta == 0)
                 return;
 
@@ -367,10 +368,35 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         public void OnLeadExecution(Execution execution)
         {
-            if (execution == null || execution.Instrument == null)
+            if (!IsRunning || execution == null || execution.Instrument == null || isFlattenAllInProgress)
                 return;
 
-            OnLeadPositionChanged(execution.Instrument);
+            string instrumentKey = execution.Instrument.FullName;
+            if (ShouldIgnoreLeadExecutionForFlattenAll(instrumentKey))
+                return;
+
+            int previousQty = leadQuantityByInstrument.ContainsKey(instrumentKey)
+                ? leadQuantityByInstrument[instrumentKey]
+                : 0;
+
+            int delta = CalculateLeadDelta(execution, instrumentKey, previousQty);
+            if (delta == 0)
+                return;
+
+            int currentQty = GetLeadPositionQuantity(instrumentKey);
+            if (currentQty == previousQty)
+                currentQty = previousQty + delta;
+
+            leadQuantityByInstrument[instrumentKey] = currentQty;
+
+            if (currentQty == 0)
+            {
+                FlattenFollowers(execution.Instrument);
+                return;
+            }
+
+            if (!ReplicateExecutionTrade(execution.Order, execution.Instrument, delta))
+                ReplicateDirectionalTrade(execution.Instrument, delta);
         }
 
         private bool ShouldIgnoreLeadExecutionForFlattenAll(string instrumentKey)
@@ -419,11 +445,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (execution == null)
                 return 0;
 
-            if (marketPosition == MarketPosition.Short)
-                return -quantity;
-
             if (execution.Order == null)
                 return GetLeadPositionQuantity(instrumentKey) - previousQuantity;
+
+            int filledQuantity = execution.Quantity;
 
             switch (execution.Order.OrderAction)
             {
@@ -436,6 +461,44 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 default:
                     return 0;
             }
+        }
+
+        private bool ReplicateExecutionTrade(Order order, Instrument instrument, int deltaQuantity)
+        {
+            if (order == null || instrument == null)
+                return false;
+
+            OrderAction action = order.OrderAction;
+            if (action != OrderAction.Buy
+                && action != OrderAction.BuyToCover
+                && action != OrderAction.Sell
+                && action != OrderAction.SellShort)
+                return false;
+
+            int quantity = Math.Abs(deltaQuantity);
+            if (quantity <= 0)
+                return false;
+
+            foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled))
+            {
+                if (leadAccount != null && follower.Name == leadAccount.Name)
+                    continue;
+
+                SubmitFollowerOrder(follower.Account, instrument, action, quantity);
+            }
+
+            return true;
+        }
+
+        private static int GetSignedQuantity(MarketPosition marketPosition, int quantity)
+        {
+            if (marketPosition == MarketPosition.Long)
+                return quantity;
+
+            if (marketPosition == MarketPosition.Short)
+                return -quantity;
+
+            return 0;
         }
 
         private void ReplicateDirectionalTrade(Instrument instrument, int deltaQuantity)
