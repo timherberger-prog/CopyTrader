@@ -84,6 +84,13 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                     Converter = new BooleanInvertConverter()
                 });
 
+            Border selectAllDivider = new Border
+            {
+                Height = 1,
+                Margin = new Thickness(20, 6, 20, 2),
+                Background = new SolidColorBrush(Color.FromRgb(85, 85, 85))
+            };
+
             ScrollViewer followerList = new ScrollViewer
             {
                 Margin = new Thickness(8),
@@ -103,6 +110,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             followerList.Content = followerItems;
 
             followerPanel.Children.Add(selectAllCheckBox);
+            followerPanel.Children.Add(selectAllDivider);
             followerPanel.Children.Add(followerList);
 
             followerBox.Content = followerPanel;
