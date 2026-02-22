@@ -85,6 +85,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 if (currentAccounts.All(a => a.Name != availableAccounts[i].Name))
                 {
                     AccountSelection removed = availableAccounts[i];
+                    removed.PropertyChanged -= AccountSelectionPropertyChanged;
                     availableAccounts.RemoveAt(i);
                     followerAccounts.Remove(removed);
 
@@ -97,7 +98,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             foreach (Account account in currentAccounts)
             {
                 if (availableAccounts.All(a => a.Name != account.Name))
-                    availableAccounts.Add(new AccountSelection(account));
+                {
+                    AccountSelection added = new AccountSelection(account);
+                    added.PropertyChanged += AccountSelectionPropertyChanged;
+                    availableAccounts.Add(added);
+                }
             }
 
             // Leadkonto beibehalten, ansonsten Default setzen.
@@ -108,6 +113,19 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private void SubscribePlatformEvents()
         {
             Account.AccountStatusUpdate += AccountStatusUpdate;
+            Account.ExecutionUpdate += AccountExecutionUpdate;
+        }
+
+        private void AccountExecutionUpdate(object sender, ExecutionEventArgs e)
+        {
+            if (e == null || e.Execution == null || leadAccount == null)
+                return;
+
+            Account executionAccount = sender as Account;
+            if (executionAccount == null || executionAccount.Name != leadAccount.Name)
+                return;
+
+            OnLeadExecution(e.Execution);
         }
 
         private void AccountStatusUpdate(object sender, AccountStatusEventArgs e)
@@ -140,6 +158,27 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 foreach (AccountSelection selection in e.OldItems)
                     selection.FollowEnabled = false;
             }
+        }
+
+        private void AccountSelectionPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e == null || e.PropertyName != "FollowEnabled")
+                return;
+
+            AccountSelection selection = sender as AccountSelection;
+            if (selection == null)
+                return;
+
+            if (selection.FollowEnabled)
+            {
+                if (!followerAccounts.Contains(selection))
+                    followerAccounts.Add(selection);
+
+                return;
+            }
+
+            if (followerAccounts.Contains(selection))
+                followerAccounts.Remove(selection);
         }
 
         public void OnLeadExecution(Execution execution)
@@ -221,7 +260,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         public void Dispose()
         {
             Account.AccountStatusUpdate -= AccountStatusUpdate;
+            Account.ExecutionUpdate -= AccountExecutionUpdate;
             followerAccounts.CollectionChanged -= FollowerAccountsChanged;
+
+            foreach (AccountSelection selection in availableAccounts)
+                selection.PropertyChanged -= AccountSelectionPropertyChanged;
         }
 
         private void OnPropertyChanged(string propertyName)

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Linq;
 using NinjaTrader.Gui.Tools;
 #endregion
 
@@ -55,14 +56,20 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             GroupBox followerBox = new GroupBox { Header = "Follower Konten" };
             Grid.SetRow(followerBox, 2);
 
-            ListBox followerList = new ListBox { Margin = new Thickness(8) };
+            ListBox followerList = new ListBox
+            {
+                Margin = new Thickness(8),
+                SelectionMode = SelectionMode.Multiple
+            };
             followerList.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("AvailableAccounts"));
             followerList.ItemTemplate = BuildFollowerTemplate();
             followerList.SelectionChanged += delegate
             {
-                engine.FollowerAccounts.Clear();
-                foreach (AccountSelection selected in followerList.SelectedItems)
-                    engine.FollowerAccounts.Add(selected);
+                foreach (AccountSelection removed in followerList.SelectedItems.Cast<object>().Select(i => i as AccountSelection).Where(a => a != null))
+                    removed.FollowEnabled = true;
+
+                foreach (AccountSelection account in engine.AvailableAccounts.Where(a => !followerList.SelectedItems.Contains(a) && a.FollowEnabled))
+                    account.FollowEnabled = false;
             };
 
             followerBox.Content = followerList;
