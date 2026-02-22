@@ -19,7 +19,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         private AccountSelection leadAccount;
         private bool isRunning;
-        private readonly Dictionary<string, DateTime> flattenAllSuppressionUntilByInstrument;
+        private bool isFlattenAllInProgress;
 
         public string CopierStatusText
         {
@@ -231,6 +231,9 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (!IsRunning || leadAccount == null)
                 return;
 
+            if (isFlattenAllInProgress)
+                return;
+
             if (execution == null || execution.Instrument == null)
                 return;
 
@@ -352,29 +355,27 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         public void FlattenAllManagedPositions()
         {
-            flattenAllSuppressionUntilByInstrument.Clear();
+            isFlattenAllInProgress = true;
 
-            if (leadAccount != null && leadAccount.Account != null && leadAccount.Account.Positions != null)
+            try
             {
-                DateTime suppressUntil = DateTime.UtcNow.AddSeconds(5);
-                foreach (Position position in leadAccount.Account.Positions.Where(p => p != null && p.Instrument != null && p.MarketPosition != MarketPosition.Flat))
-                {
-                    string instrumentKey = position.Instrument.FullName;
-                    flattenAllSuppressionUntilByInstrument[instrumentKey] = suppressUntil;
-                    leadQuantityByInstrument[instrumentKey] = 0;
-                }
+                HashSet<Account> managedAccounts = new HashSet<Account>();
+
+                if (leadAccount != null && leadAccount.Account != null)
+                    managedAccounts.Add(leadAccount.Account);
+
+                foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled && f.Account != null))
+                    managedAccounts.Add(follower.Account);
+
+                foreach (Account account in managedAccounts)
+                    FlattenAccountPositions(account);
+
+                leadQuantityByInstrument.Clear();
             }
-
-            HashSet<Account> managedAccounts = new HashSet<Account>();
-
-            if (leadAccount != null && leadAccount.Account != null)
-                managedAccounts.Add(leadAccount.Account);
-
-            foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled && f.Account != null))
-                managedAccounts.Add(follower.Account);
-
-            foreach (Account account in managedAccounts)
-                FlattenAccountPositions(account);
+            finally
+            {
+                isFlattenAllInProgress = false;
+            }
         }
 
         private static void FlattenAccountPositions(Account account)
