@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Linq;
 using NinjaTrader.Gui.Tools;
 #endregion
@@ -33,6 +34,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition());
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             TextBlock leadLabel = new TextBlock
@@ -75,6 +77,30 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             followerBox.Content = followerList;
             grid.Children.Add(followerBox);
 
+            Border statusBar = new Border
+            {
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 6, 8, 6),
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+
+            TextBlock statusText = new TextBlock
+            {
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            statusText.SetBinding(TextBlock.TextProperty, new Binding("CopierStatusText"));
+            statusBar.Child = statusText;
+            statusBar.SetBinding(Border.BackgroundProperty,
+                new Binding("IsRunning")
+                {
+                    Converter = new BooleanToBrushConverter(Brushes.ForestGreen, Brushes.Firebrick)
+                });
+
+            Grid.SetRow(statusBar, 3);
+            grid.Children.Add(statusBar);
+
             StackPanel footer = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -90,17 +116,22 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             };
             refreshButton.Click += delegate { engine.SyncAccountsWithControlCenter(); };
 
-            CheckBox runCheckbox = new CheckBox
+            Button runButton = new Button
             {
-                Content = "Copier aktiv",
+                MinWidth = 110,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            runCheckbox.SetBinding(ToggleButton.IsCheckedProperty, new Binding("IsRunning") { Mode = BindingMode.TwoWay });
+            runButton.SetBinding(ContentControl.ContentProperty,
+                new Binding("IsRunning")
+                {
+                    Converter = new BooleanToTextConverter("Copier stoppen", "Copier starten")
+                });
+            runButton.Click += delegate { engine.ToggleRunning(); };
 
             footer.Children.Add(refreshButton);
-            footer.Children.Add(runCheckbox);
+            footer.Children.Add(runButton);
 
-            Grid.SetRow(footer, 3);
+            Grid.SetRow(footer, 4);
             grid.Children.Add(footer);
 
             return grid;
@@ -114,6 +145,50 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
             DataTemplate template = new DataTemplate { VisualTree = check };
             return template;
+        }
+
+        private class BooleanToBrushConverter : IValueConverter
+        {
+            private readonly Brush trueBrush;
+            private readonly Brush falseBrush;
+
+            public BooleanToBrushConverter(Brush trueBrush, Brush falseBrush)
+            {
+                this.trueBrush = trueBrush;
+                this.falseBrush = falseBrush;
+            }
+
+            public object Convert(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            {
+                return value is bool && (bool)value ? trueBrush : falseBrush;
+            }
+
+            public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            {
+                return Binding.DoNothing;
+            }
+        }
+
+        private class BooleanToTextConverter : IValueConverter
+        {
+            private readonly string trueText;
+            private readonly string falseText;
+
+            public BooleanToTextConverter(string trueText, string falseText)
+            {
+                this.trueText = trueText;
+                this.falseText = falseText;
+            }
+
+            public object Convert(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            {
+                return value is bool && (bool)value ? trueText : falseText;
+            }
+
+            public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            {
+                return Binding.DoNothing;
+            }
         }
     }
 }

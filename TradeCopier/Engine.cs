@@ -20,6 +20,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private AccountSelection leadAccount;
         private bool isRunning;
 
+        public string CopierStatusText
+        {
+            get { return isRunning ? "Copier läuft" : "Copier gestoppt"; }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         public TradeCopierEngine()
@@ -65,7 +70,13 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
                 isRunning = value;
                 OnPropertyChanged("IsRunning");
+                OnPropertyChanged("CopierStatusText");
             }
+        }
+
+        public void ToggleRunning()
+        {
+            IsRunning = !IsRunning;
         }
 
         public void Start()
@@ -276,7 +287,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (account == null || instrument == null || quantity <= 0)
                 return;
 
-            account.CreateOrder(
+            Order order = account.CreateOrder(
                 instrument,
                 action,
                 OrderType.Market,
@@ -287,6 +298,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 string.Empty,
                 "TradeCopierFollower",
                 null);
+
+            if (order == null)
+                return;
+
+            account.Submit(new[] { order });
         }
 
         public void Dispose()
