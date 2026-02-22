@@ -395,34 +395,8 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 return;
             }
 
-            OrderAction? executionAction = null;
-            if (execution.Order != null)
-            {
-                OrderAction action = execution.Order.OrderAction;
-                if (action == OrderAction.Buy
-                    || action == OrderAction.BuyToCover
-                    || action == OrderAction.Sell
-                    || action == OrderAction.SellShort)
-                    executionAction = action;
-            }
-
-            if (executionAction == null)
-            {
+            if (!ReplicateExecutionTrade(execution.Order, execution.Instrument, delta))
                 ReplicateDirectionalTrade(execution.Instrument, delta);
-                return;
-            }
-
-            int quantity = Math.Abs(delta);
-            if (quantity <= 0)
-                return;
-
-            foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled))
-            {
-                if (leadAccount != null && follower.Name == leadAccount.Name)
-                    continue;
-
-                SubmitFollowerOrder(follower.Account, execution.Instrument, executionAction.Value, quantity);
-            }
         }
 
         private bool ShouldIgnoreLeadExecutionForFlattenAll(string instrumentKey)
