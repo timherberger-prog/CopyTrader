@@ -13,6 +13,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
     public class TradeCopierEngine : IDisposable, INotifyPropertyChanged
     {
         private readonly ObservableCollection<AccountSelection> availableAccounts;
+        private readonly ObservableCollection<AccountSelection> selectableFollowerAccounts;
         private readonly ObservableCollection<AccountSelection> followerAccounts;
         private readonly Dictionary<string, int> leadQuantityByInstrument;
         private readonly Dictionary<string, DateTime> flattenAllSuppressionUntilByInstrument;
@@ -32,6 +33,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         public TradeCopierEngine()
         {
             availableAccounts = new ObservableCollection<AccountSelection>();
+            selectableFollowerAccounts = new ObservableCollection<AccountSelection>();
             followerAccounts = new ObservableCollection<AccountSelection>();
             leadQuantityByInstrument = new Dictionary<string, int>();
             executionSubscribedAccounts = new HashSet<Account>();
@@ -50,6 +52,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             get { return followerAccounts; }
         }
 
+        public ObservableCollection<AccountSelection> SelectableFollowerAccounts
+        {
+            get { return selectableFollowerAccounts; }
+        }
+
         public AccountSelection LeadAccount
         {
             get { return leadAccount; }
@@ -59,7 +66,12 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                     return;
 
                 leadAccount = value;
+
+                if (leadAccount != null && leadAccount.FollowEnabled)
+                    leadAccount.FollowEnabled = false;
+
                 OnPropertyChanged("LeadAccount");
+                RefreshSelectableFollowerAccounts();
             }
         }
 
@@ -126,6 +138,18 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             // Leadkonto beibehalten, ansonsten Default setzen.
             if (leadAccount == null && availableAccounts.Count > 0)
                 LeadAccount = availableAccounts[0];
+
+            RefreshSelectableFollowerAccounts();
+        }
+
+        private void RefreshSelectableFollowerAccounts()
+        {
+            selectableFollowerAccounts.Clear();
+
+            foreach (AccountSelection account in availableAccounts.Where(a => leadAccount == null || a.Name != leadAccount.Name))
+                selectableFollowerAccounts.Add(account);
+
+            OnPropertyChanged("SelectableFollowerAccounts");
         }
 
         private void SubscribePlatformEvents()
