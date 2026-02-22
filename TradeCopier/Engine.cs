@@ -463,33 +463,6 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             }
         }
 
-        private bool ReplicateExecutionTrade(Order order, Instrument instrument, int deltaQuantity)
-        {
-            if (order == null || instrument == null)
-                return false;
-
-            OrderAction action = order.OrderAction;
-            if (action != OrderAction.Buy
-                && action != OrderAction.BuyToCover
-                && action != OrderAction.Sell
-                && action != OrderAction.SellShort)
-                return false;
-
-            int quantity = Math.Abs(deltaQuantity);
-            if (quantity <= 0)
-                return false;
-
-            foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled))
-            {
-                if (leadAccount != null && follower.Name == leadAccount.Name)
-                    continue;
-
-                SubmitFollowerOrder(follower.Account, instrument, action, quantity);
-            }
-
-            return true;
-        }
-
         private static int GetSignedQuantity(MarketPosition marketPosition, int quantity)
         {
             if (marketPosition == MarketPosition.Long)
