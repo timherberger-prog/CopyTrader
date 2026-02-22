@@ -34,6 +34,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             followerAccounts = new ObservableCollection<AccountSelection>();
             leadQuantityByInstrument = new Dictionary<string, int>();
             executionSubscribedAccounts = new HashSet<Account>();
+            flattenAllSuppressionUntilByInstrument = new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
             followerAccounts.CollectionChanged += FollowerAccountsChanged;
         }
@@ -237,9 +238,12 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 return;
 
             string instrumentKey = execution.Instrument.FullName;
+            if (ShouldIgnoreLeadExecutionForFlattenAll(instrumentKey))
+                return;
+
             int previousQty = leadQuantityByInstrument.ContainsKey(instrumentKey)
                 ? leadQuantityByInstrument[instrumentKey]
-                : 0;
+                : GetLeadPositionQuantity(instrumentKey);
 
             int delta = CalculateLeadDelta(execution);
             if (delta == 0)
@@ -255,6 +259,47 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             }
 
             ReplicateDirectionalTrade(execution, delta);
+        }
+
+        private bool ShouldIgnoreLeadExecutionForFlattenAll(string instrumentKey)
+        {
+            if (instrumentKey == null || instrumentKey.Length == 0)
+                return false;
+
+            DateTime suppressUntil;
+            if (!flattenAllSuppressionUntilByInstrument.TryGetValue(instrumentKey, out suppressUntil))
+                return false;
+
+            if (DateTime.UtcNow > suppressUntil)
+            {
+                flattenAllSuppressionUntilByInstrument.Remove(instrumentKey);
+                return false;
+            }
+
+            if (GetLeadPositionQuantity(instrumentKey) == 0)
+                leadQuantityByInstrument[instrumentKey] = 0;
+
+            return true;
+        }
+
+        private int GetLeadPositionQuantity(string instrumentKey)
+        {
+            if (leadAccount == null || leadAccount.Account == null || leadAccount.Account.Positions == null)
+                return 0;
+
+            Position position = leadAccount.Account.Positions
+                .FirstOrDefault(p => p != null && p.Instrument != null && p.Instrument.FullName == instrumentKey);
+
+            if (position == null)
+                return 0;
+
+            if (position.MarketPosition == MarketPosition.Long)
+                return position.Quantity;
+
+            if (position.MarketPosition == MarketPosition.Short)
+                return -position.Quantity;
+
+            return 0;
         }
 
         private static int CalculateLeadDelta(Execution execution)
