@@ -128,7 +128,17 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 });
             runButton.Click += delegate { engine.ToggleRunning(); };
 
+            Button flattenAllButton = new Button
+            {
+                Content = "Flatten All",
+                MinWidth = 110,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            flattenAllButton.Click += delegate { engine.FlattenAllManagedPositions(); };
+
             footer.Children.Add(refreshButton);
+            footer.Children.Add(flattenAllButton);
             footer.Children.Add(runButton);
 
             Grid.SetRow(footer, 4);
