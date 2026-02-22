@@ -291,7 +291,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 ? leadQuantityByInstrument[instrumentKey]
                 : GetLeadPositionQuantity(instrumentKey);
 
-            int delta = CalculateLeadDelta(execution);
+            int delta = CalculateLeadDelta(execution, instrumentKey, previousQty);
             if (delta == 0)
                 return;
 
@@ -348,14 +348,17 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             return 0;
         }
 
-        private static int CalculateLeadDelta(Execution execution)
+        private int CalculateLeadDelta(Execution execution, string instrumentKey, int previousQuantity)
         {
-            if (execution == null || execution.Order == null)
+            if (execution == null)
                 return 0;
 
             int filledQuantity = execution.Quantity;
             if (filledQuantity <= 0)
                 return 0;
+
+            if (execution.Order == null)
+                return GetLeadPositionQuantity(instrumentKey) - previousQuantity;
 
             switch (execution.Order.OrderAction)
             {
