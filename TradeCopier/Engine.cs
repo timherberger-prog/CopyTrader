@@ -237,9 +237,9 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 ? leadQuantityByInstrument[instrumentKey]
                 : 0;
 
-            int delta = execution.Order != null ? execution.Order.Filled : 0;
-            if (execution.MarketPosition == MarketPosition.Short)
-                delta = -delta;
+            int delta = CalculateLeadDelta(execution);
+            if (delta == 0)
+                return;
 
             int currentQty = previousQty + delta;
             leadQuantityByInstrument[instrumentKey] = currentQty;
@@ -251,6 +251,28 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             }
 
             ReplicateDirectionalTrade(execution, delta);
+        }
+
+        private static int CalculateLeadDelta(Execution execution)
+        {
+            if (execution == null || execution.Order == null)
+                return 0;
+
+            int filledQuantity = execution.Quantity;
+            if (filledQuantity <= 0)
+                return 0;
+
+            switch (execution.Order.OrderAction)
+            {
+                case OrderAction.Buy:
+                case OrderAction.BuyToCover:
+                    return filledQuantity;
+                case OrderAction.Sell:
+                case OrderAction.SellShort:
+                    return -filledQuantity;
+                default:
+                    return 0;
+            }
         }
 
         private void ReplicateDirectionalTrade(Execution leadExecution, int deltaQuantity)
@@ -280,6 +302,39 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 // Protection wird nur auf Lead gemanagt. Bei Flat im Lead alle Follower flatten.
                 follower.Account.Flatten(new[] { instrument });
             }
+        }
+
+        public void FlattenAllManagedPositions()
+        {
+            HashSet<Account> managedAccounts = new HashSet<Account>();
+
+            if (leadAccount != null && leadAccount.Account != null)
+                managedAccounts.Add(leadAccount.Account);
+
+            foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled && f.Account != null))
+                managedAccounts.Add(follower.Account);
+
+            foreach (Account account in managedAccounts)
+                FlattenAccountPositions(account);
+
+            leadQuantityByInstrument.Clear();
+        }
+
+        private static void FlattenAccountPositions(Account account)
+        {
+            if (account == null || account.Positions == null)
+                return;
+
+            Instrument[] instruments = account.Positions
+                .Where(p => p != null && p.Instrument != null && p.MarketPosition != MarketPosition.Flat)
+                .Select(p => p.Instrument)
+                .Distinct()
+                .ToArray();
+
+            if (instruments.Length == 0)
+                return;
+
+            account.Flatten(instruments);
         }
 
         private static void SubmitFollowerOrder(Account account, Instrument instrument, OrderAction action, int quantity)
