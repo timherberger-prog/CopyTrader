@@ -144,7 +144,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 MinWidth = 110,
                 Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Background = Brushes.DarkOrange,
+                Background = new SolidColorBrush(Color.FromRgb(220, 57, 0)),
                 Foreground = Brushes.White
             };
             flattenAllButton.Click += delegate { engine.FlattenAllManagedPositions(); };
