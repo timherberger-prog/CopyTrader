@@ -89,6 +89,22 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             }
         }
 
+        public bool SelectAllFollowers
+        {
+            get
+            {
+                return selectableFollowerAccounts.Count > 0
+                    && selectableFollowerAccounts.All(a => a.FollowEnabled);
+            }
+            set
+            {
+                foreach (AccountSelection account in selectableFollowerAccounts)
+                    account.FollowEnabled = value;
+
+                OnPropertyChanged("SelectAllFollowers");
+            }
+        }
+
         public void ToggleRunning()
         {
             IsRunning = !IsRunning;
@@ -150,6 +166,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 selectableFollowerAccounts.Add(account);
 
             OnPropertyChanged("SelectableFollowerAccounts");
+            OnPropertyChanged("SelectAllFollowers");
         }
 
         private void SubscribePlatformEvents()
@@ -244,11 +261,15 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 if (!followerAccounts.Contains(selection))
                     followerAccounts.Add(selection);
 
+                OnPropertyChanged("SelectAllFollowers");
+
                 return;
             }
 
             if (followerAccounts.Contains(selection))
                 followerAccounts.Remove(selection);
+
+            OnPropertyChanged("SelectAllFollowers");
         }
 
         public void OnLeadExecution(Execution execution)

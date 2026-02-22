@@ -66,6 +66,20 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             GroupBox followerBox = new GroupBox { Header = "Follower Konten" };
             Grid.SetRow(followerBox, 2);
 
+            StackPanel followerPanel = new StackPanel();
+
+            CheckBox selectAllCheckBox = new CheckBox
+            {
+                Content = "Select All",
+                Margin = new Thickness(8, 8, 8, 0),
+                Foreground = Brushes.White
+            };
+            selectAllCheckBox.SetBinding(ToggleButton.IsCheckedProperty,
+                new Binding("SelectAllFollowers")
+                {
+                    Mode = BindingMode.TwoWay
+                });
+
             ListBox followerList = new ListBox
             {
                 Margin = new Thickness(8),
@@ -87,7 +101,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                     account.FollowEnabled = false;
             };
 
-            followerBox.Content = followerList;
+            followerPanel.Children.Add(selectAllCheckBox);
+            followerPanel.Children.Add(followerList);
+
+            followerBox.Content = followerPanel;
             grid.Children.Add(followerBox);
 
             Border statusBar = new Border
