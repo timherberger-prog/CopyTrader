@@ -22,7 +22,7 @@ Diese erste Version enthält die typische AddOn-Struktur für NinjaTrader:
 
 ## Nächste sinnvolle Schritte
 
-- Hook für echte Lead-Execution-Events anbinden (`OnLeadExecution`).
+- Optional: zusätzliche Filter für Execution-Quellen (z. B. Instrument-Scope) ergänzen.
 - Robuste Order-Fehlerbehandlung und Retry-Logik ergänzen.
 - Persistenz für Konto-Mappings (Template/Workspace) ergänzen.
 - Erweiterte Filter je Instrument, Konto oder Session-Zeit hinzufügen.
