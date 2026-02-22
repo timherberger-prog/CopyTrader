@@ -15,6 +15,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private readonly ObservableCollection<AccountSelection> availableAccounts;
         private readonly ObservableCollection<AccountSelection> followerAccounts;
         private readonly Dictionary<string, int> leadQuantityByInstrument;
+        private readonly Dictionary<string, DateTime> flattenAllSuppressionUntilByInstrument;
         private readonly HashSet<Account> executionSubscribedAccounts;
 
         private AccountSelection leadAccount;
@@ -369,6 +370,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
                 foreach (Account account in managedAccounts)
                     FlattenAccountPositions(account);
+
+                DateTime suppressionUntil = DateTime.UtcNow.AddSeconds(2);
+                foreach (string instrumentKey in leadQuantityByInstrument.Keys.ToList())
+                    flattenAllSuppressionUntilByInstrument[instrumentKey] = suppressionUntil;
 
                 leadQuantityByInstrument.Clear();
             }
