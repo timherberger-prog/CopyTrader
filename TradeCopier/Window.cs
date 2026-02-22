@@ -79,6 +79,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 {
                     Mode = BindingMode.TwoWay
                 });
+            selectAllCheckBox.SetBinding(UIElement.IsEnabledProperty,
+                new Binding("IsRunning")
+                {
+                    Converter = new BooleanInvertConverter()
+                });
 
             ListBox followerList = new ListBox
             {
