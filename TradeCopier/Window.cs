@@ -52,6 +52,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             };
             leadCombo.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("AvailableAccounts"));
             leadCombo.SetBinding(Selector.SelectedItemProperty, new Binding("LeadAccount") { Mode = BindingMode.TwoWay });
+            leadCombo.SetBinding(UIElement.IsEnabledProperty,
+                new Binding("IsRunning")
+                {
+                    Converter = new BooleanInvertConverter()
+                });
             Grid.SetRow(leadCombo, 1);
             grid.Children.Add(leadCombo);
 
@@ -63,7 +68,12 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 Margin = new Thickness(8),
                 SelectionMode = SelectionMode.Multiple
             };
-            followerList.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("AvailableAccounts"));
+            followerList.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("SelectableFollowerAccounts"));
+            followerList.SetBinding(UIElement.IsEnabledProperty,
+                new Binding("IsRunning")
+                {
+                    Converter = new BooleanInvertConverter()
+                });
             followerList.ItemTemplate = BuildFollowerTemplate();
             followerList.SelectionChanged += delegate
             {
@@ -133,7 +143,9 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 Content = "Flatten All",
                 MinWidth = 110,
                 Margin = new Thickness(0, 0, 8, 0),
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = Brushes.DarkOrange,
+                Foreground = Brushes.White
             };
             flattenAllButton.Click += delegate { engine.FlattenAllManagedPositions(); };
 
@@ -155,6 +167,20 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
             DataTemplate template = new DataTemplate { VisualTree = check };
             return template;
+        }
+
+
+        private class BooleanInvertConverter : IValueConverter
+        {
+            public object Convert(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            {
+                return !(value is bool && (bool)value);
+            }
+
+            public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+            {
+                return Binding.DoNothing;
+            }
         }
 
         private class BooleanToBrushConverter : IValueConverter
