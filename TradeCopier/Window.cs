@@ -40,7 +40,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             TextBlock leadLabel = new TextBlock
             {
                 Text = "Lead Konto",
-                Margin = new Thickness(0, 0, 0, 4)
+                Margin = new Thickness(0, 0, 0, 2),
+                FontSize = 16,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White
             };
             Grid.SetRow(leadLabel, 0);
             grid.Children.Add(leadLabel);
@@ -48,7 +51,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             ComboBox leadCombo = new ComboBox
             {
                 DisplayMemberPath = "Name",
-                Margin = new Thickness(0, 20, 0, 12)
+                Margin = new Thickness(0, 0, 0, 12)
             };
             leadCombo.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("AvailableAccounts"));
             leadCombo.SetBinding(Selector.SelectedItemProperty, new Binding("LeadAccount") { Mode = BindingMode.TwoWay });
