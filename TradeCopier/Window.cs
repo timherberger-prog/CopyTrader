@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
-using System.Linq;
 using NinjaTrader.Gui.Tools;
 #endregion
 
@@ -85,26 +84,23 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                     Converter = new BooleanInvertConverter()
                 });
 
-            ListBox followerList = new ListBox
+            ScrollViewer followerList = new ScrollViewer
             {
                 Margin = new Thickness(8),
-                SelectionMode = SelectionMode.Multiple
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = 220
             };
-            followerList.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("SelectableFollowerAccounts"));
+
+            ItemsControl followerItems = new ItemsControl();
+            followerItems.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("SelectableFollowerAccounts"));
+            followerItems.ItemTemplate = BuildFollowerTemplate();
+
             followerList.SetBinding(UIElement.IsEnabledProperty,
                 new Binding("IsRunning")
                 {
                     Converter = new BooleanInvertConverter()
                 });
-            followerList.ItemTemplate = BuildFollowerTemplate();
-            followerList.SelectionChanged += delegate
-            {
-                foreach (AccountSelection removed in followerList.SelectedItems.Cast<object>().Select(i => i as AccountSelection).Where(a => a != null))
-                    removed.FollowEnabled = true;
-
-                foreach (AccountSelection account in engine.AvailableAccounts.Where(a => !followerList.SelectedItems.Contains(a) && a.FollowEnabled))
-                    account.FollowEnabled = false;
-            };
+            followerList.Content = followerItems;
 
             followerPanel.Children.Add(selectAllCheckBox);
             followerPanel.Children.Add(followerList);
