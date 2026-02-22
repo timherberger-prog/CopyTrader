@@ -333,7 +333,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 if (instrumentKey == null || instrumentKey.Length == 0)
                     continue;
 
-                leadQuantityByInstrument[instrumentKey] = ToSignedQuantity(position.MarketPosition, position.Quantity);
+                leadQuantityByInstrument[instrumentKey] = GetSignedQuantity(position.MarketPosition, position.Quantity);
             }
         }
 
@@ -350,7 +350,8 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 ? leadQuantityByInstrument[instrumentKey]
                 : 0;
 
-            int delta = CalculateLeadDelta(execution, instrumentKey, previousQty);
+            int currentQty = GetLeadPositionQuantity(instrumentKey);
+            int delta = currentQty - previousQty;
             if (delta == 0)
                 return;
 
@@ -419,11 +420,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (execution == null)
                 return 0;
 
-            if (marketPosition == MarketPosition.Short)
-                return -quantity;
-
             if (execution.Order == null)
                 return GetLeadPositionQuantity(instrumentKey) - previousQuantity;
+
+            int filledQuantity = execution.Quantity;
 
             switch (execution.Order.OrderAction)
             {
@@ -436,6 +436,17 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 default:
                     return 0;
             }
+        }
+
+        private static int GetSignedQuantity(MarketPosition marketPosition, int quantity)
+        {
+            if (marketPosition == MarketPosition.Long)
+                return quantity;
+
+            if (marketPosition == MarketPosition.Short)
+                return -quantity;
+
+            return 0;
         }
 
         private void ReplicateDirectionalTrade(Instrument instrument, int deltaQuantity)
