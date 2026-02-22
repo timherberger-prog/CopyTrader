@@ -368,10 +368,35 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         public void OnLeadExecution(Execution execution)
         {
-            if (execution == null || execution.Instrument == null)
+            if (!IsRunning || execution == null || execution.Instrument == null || isFlattenAllInProgress)
                 return;
 
-            OnLeadPositionChanged(execution.Instrument);
+            string instrumentKey = execution.Instrument.FullName;
+            if (ShouldIgnoreLeadExecutionForFlattenAll(instrumentKey))
+                return;
+
+            int previousQty = leadQuantityByInstrument.ContainsKey(instrumentKey)
+                ? leadQuantityByInstrument[instrumentKey]
+                : 0;
+
+            int delta = CalculateLeadDelta(execution, instrumentKey, previousQty);
+            if (delta == 0)
+                return;
+
+            int currentQty = GetLeadPositionQuantity(instrumentKey);
+            if (currentQty == previousQty)
+                currentQty = previousQty + delta;
+
+            leadQuantityByInstrument[instrumentKey] = currentQty;
+
+            if (currentQty == 0)
+            {
+                FlattenFollowers(execution.Instrument);
+                return;
+            }
+
+            if (!ReplicateExecutionTrade(execution.Order, execution.Instrument, delta))
+                ReplicateDirectionalTrade(execution.Instrument, delta);
         }
 
         private bool ShouldIgnoreLeadExecutionForFlattenAll(string instrumentKey)
