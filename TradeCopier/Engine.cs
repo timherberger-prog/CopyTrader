@@ -15,6 +15,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private readonly ObservableCollection<AccountSelection> availableAccounts;
         private readonly ObservableCollection<AccountSelection> followerAccounts;
         private readonly Dictionary<string, int> leadQuantityByInstrument;
+        private readonly HashSet<Account> executionSubscribedAccounts;
 
         private AccountSelection leadAccount;
         private bool isRunning;
@@ -26,6 +27,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             availableAccounts = new ObservableCollection<AccountSelection>();
             followerAccounts = new ObservableCollection<AccountSelection>();
             leadQuantityByInstrument = new Dictionary<string, int>();
+            executionSubscribedAccounts = new HashSet<Account>();
 
             followerAccounts.CollectionChanged += FollowerAccountsChanged;
         }
@@ -79,6 +81,8 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 .OrderBy(a => a.Name)
                 .ToList();
 
+            SyncExecutionSubscriptions(currentAccounts);
+
             // Entferne Accounts, die im Control Center nicht mehr verfügbar sind.
             for (int i = availableAccounts.Count - 1; i >= 0; i--)
             {
@@ -113,7 +117,35 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private void SubscribePlatformEvents()
         {
             Account.AccountStatusUpdate += AccountStatusUpdate;
-            Account.ExecutionUpdate += AccountExecutionUpdate;
+
+            foreach (Account account in Account.All.Where(IsTradeableAccount))
+                SubscribeExecutionForAccount(account);
+        }
+
+        private void SyncExecutionSubscriptions(IEnumerable<Account> accounts)
+        {
+            List<Account> accountList = accounts != null ? accounts.ToList() : new List<Account>();
+
+            foreach (Account account in executionSubscribedAccounts.ToList())
+            {
+                if (accountList.Contains(account))
+                    continue;
+
+                account.ExecutionUpdate -= AccountExecutionUpdate;
+                executionSubscribedAccounts.Remove(account);
+            }
+
+            foreach (Account account in accountList)
+                SubscribeExecutionForAccount(account);
+        }
+
+        private void SubscribeExecutionForAccount(Account account)
+        {
+            if (account == null || executionSubscribedAccounts.Contains(account))
+                return;
+
+            account.ExecutionUpdate += AccountExecutionUpdate;
+            executionSubscribedAccounts.Add(account);
         }
 
         private void AccountExecutionUpdate(object sender, ExecutionEventArgs e)
@@ -260,7 +292,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         public void Dispose()
         {
             Account.AccountStatusUpdate -= AccountStatusUpdate;
-            Account.ExecutionUpdate -= AccountExecutionUpdate;
+
+            foreach (Account account in executionSubscribedAccounts.ToList())
+                account.ExecutionUpdate -= AccountExecutionUpdate;
+
+            executionSubscribedAccounts.Clear();
             followerAccounts.CollectionChanged -= FollowerAccountsChanged;
 
             foreach (AccountSelection selection in availableAccounts)
