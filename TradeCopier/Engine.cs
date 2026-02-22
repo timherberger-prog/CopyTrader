@@ -18,6 +18,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private readonly Dictionary<string, int> leadQuantityByInstrument;
         private readonly Dictionary<string, DateTime> flattenAllSuppressionUntilByInstrument;
         private readonly HashSet<Account> executionSubscribedAccounts;
+        private readonly HashSet<Account> positionSubscribedAccounts;
 
         private AccountSelection leadAccount;
         private bool isRunning;
@@ -37,6 +38,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             followerAccounts = new ObservableCollection<AccountSelection>();
             leadQuantityByInstrument = new Dictionary<string, int>();
             executionSubscribedAccounts = new HashSet<Account>();
+            positionSubscribedAccounts = new HashSet<Account>();
             flattenAllSuppressionUntilByInstrument = new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
             followerAccounts.CollectionChanged += FollowerAccountsChanged;
@@ -70,6 +72,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 if (leadAccount != null && leadAccount.FollowEnabled)
                     leadAccount.FollowEnabled = false;
 
+                InitializeLeadPositionCache();
                 OnPropertyChanged("LeadAccount");
                 RefreshSelectableFollowerAccounts();
             }
@@ -124,6 +127,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 .ToList();
 
             SyncExecutionSubscriptions(currentAccounts);
+            SyncPositionSubscriptions(currentAccounts);
 
             // Entferne Accounts, die im Control Center nicht mehr verfügbar sind.
             for (int i = availableAccounts.Count - 1; i >= 0; i--)
@@ -174,7 +178,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             Account.AccountStatusUpdate += AccountStatusUpdate;
 
             foreach (Account account in Account.All.Where(IsTradeableAccount))
+            {
                 SubscribeExecutionForAccount(account);
+                SubscribePositionForAccount(account);
+            }
         }
 
         private void SyncExecutionSubscriptions(IEnumerable<Account> accounts)
@@ -194,6 +201,23 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 SubscribeExecutionForAccount(account);
         }
 
+        private void SyncPositionSubscriptions(IEnumerable<Account> accounts)
+        {
+            List<Account> accountList = accounts != null ? accounts.ToList() : new List<Account>();
+
+            foreach (Account account in positionSubscribedAccounts.ToList())
+            {
+                if (accountList.Contains(account))
+                    continue;
+
+                account.PositionUpdate -= AccountPositionUpdate;
+                positionSubscribedAccounts.Remove(account);
+            }
+
+            foreach (Account account in accountList)
+                SubscribePositionForAccount(account);
+        }
+
         private void SubscribeExecutionForAccount(Account account)
         {
             if (account == null || executionSubscribedAccounts.Contains(account))
@@ -201,6 +225,15 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
             account.ExecutionUpdate += AccountExecutionUpdate;
             executionSubscribedAccounts.Add(account);
+        }
+
+        private void SubscribePositionForAccount(Account account)
+        {
+            if (account == null || positionSubscribedAccounts.Contains(account))
+                return;
+
+            account.PositionUpdate += AccountPositionUpdate;
+            positionSubscribedAccounts.Add(account);
         }
 
         private void AccountExecutionUpdate(object sender, ExecutionEventArgs e)
@@ -213,6 +246,18 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 return;
 
             OnLeadExecution(e.Execution);
+        }
+
+        private void AccountPositionUpdate(object sender, PositionEventArgs e)
+        {
+            if (e == null || e.Position == null || e.Position.Instrument == null || leadAccount == null)
+                return;
+
+            Account positionAccount = sender as Account;
+            if (positionAccount == null || positionAccount.Name != leadAccount.Name)
+                return;
+
+            OnLeadPositionChanged(e.Position.Instrument);
         }
 
         private void AccountStatusUpdate(object sender, AccountStatusEventArgs e)
@@ -272,39 +317,61 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             OnPropertyChanged("SelectAllFollowers");
         }
 
-        public void OnLeadExecution(Execution execution)
+        private void InitializeLeadPositionCache()
         {
-            if (!IsRunning || leadAccount == null)
+            leadQuantityByInstrument.Clear();
+
+            if (leadAccount == null || leadAccount.Account == null || leadAccount.Account.Positions == null)
                 return;
 
-            if (isFlattenAllInProgress)
+            foreach (Position position in leadAccount.Account.Positions)
+            {
+                if (position == null || position.Instrument == null)
+                    continue;
+
+                string instrumentKey = position.Instrument.FullName;
+                if (instrumentKey == null || instrumentKey.Length == 0)
+                    continue;
+
+                leadQuantityByInstrument[instrumentKey] = ToSignedQuantity(position.MarketPosition, position.Quantity);
+            }
+        }
+
+        private void OnLeadPositionChanged(Instrument instrument)
+        {
+            if (!IsRunning || instrument == null || isFlattenAllInProgress)
                 return;
 
-            if (execution == null || execution.Instrument == null)
-                return;
-
-            string instrumentKey = execution.Instrument.FullName;
+            string instrumentKey = instrument.FullName;
             if (ShouldIgnoreLeadExecutionForFlattenAll(instrumentKey))
                 return;
 
             int previousQty = leadQuantityByInstrument.ContainsKey(instrumentKey)
                 ? leadQuantityByInstrument[instrumentKey]
-                : GetLeadPositionQuantity(instrumentKey);
+                : 0;
 
-            int delta = CalculateLeadDelta(execution);
+            int currentQty = GetLeadPositionQuantity(instrumentKey);
+            int delta = currentQty - previousQty;
             if (delta == 0)
                 return;
 
-            int currentQty = previousQty + delta;
             leadQuantityByInstrument[instrumentKey] = currentQty;
 
             if (currentQty == 0)
             {
-                FlattenFollowers(execution.Instrument);
+                FlattenFollowers(instrument);
                 return;
             }
 
-            ReplicateDirectionalTrade(execution, delta);
+            ReplicateDirectionalTrade(instrument, delta);
+        }
+
+        public void OnLeadExecution(Execution execution)
+        {
+            if (execution == null || execution.Instrument == null)
+                return;
+
+            OnLeadPositionChanged(execution.Instrument);
         }
 
         private bool ShouldIgnoreLeadExecutionForFlattenAll(string instrumentKey)
@@ -348,29 +415,18 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             return 0;
         }
 
-        private static int CalculateLeadDelta(Execution execution)
+        private static int ToSignedQuantity(MarketPosition marketPosition, int quantity)
         {
-            if (execution == null || execution.Order == null)
-                return 0;
+            if (marketPosition == MarketPosition.Long)
+                return quantity;
 
-            int filledQuantity = execution.Quantity;
-            if (filledQuantity <= 0)
-                return 0;
+            if (marketPosition == MarketPosition.Short)
+                return -quantity;
 
-            switch (execution.Order.OrderAction)
-            {
-                case OrderAction.Buy:
-                case OrderAction.BuyToCover:
-                    return filledQuantity;
-                case OrderAction.Sell:
-                case OrderAction.SellShort:
-                    return -filledQuantity;
-                default:
-                    return 0;
-            }
+            return 0;
         }
 
-        private void ReplicateDirectionalTrade(Execution leadExecution, int deltaQuantity)
+        private void ReplicateDirectionalTrade(Instrument instrument, int deltaQuantity)
         {
             if (deltaQuantity == 0)
                 return;
@@ -383,7 +439,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 if (leadAccount != null && follower.Name == leadAccount.Name)
                     continue;
 
-                SubmitFollowerOrder(follower.Account, leadExecution.Instrument, followerAction, quantity);
+                SubmitFollowerOrder(follower.Account, instrument, followerAction, quantity);
             }
         }
 
@@ -475,7 +531,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             foreach (Account account in executionSubscribedAccounts.ToList())
                 account.ExecutionUpdate -= AccountExecutionUpdate;
 
+            foreach (Account account in positionSubscribedAccounts.ToList())
+                account.PositionUpdate -= AccountPositionUpdate;
+
             executionSubscribedAccounts.Clear();
+            positionSubscribedAccounts.Clear();
             followerAccounts.CollectionChanged -= FollowerAccountsChanged;
 
             foreach (AccountSelection selection in availableAccounts)
