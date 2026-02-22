@@ -241,7 +241,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (e == null || e.Execution == null || leadAccount == null)
                 return;
 
-            Account executionAccount = sender as Account;
+            Account executionAccount = sender as Account ?? e.Execution.Account;
             if (executionAccount == null || executionAccount.Name != leadAccount.Name)
                 return;
 
@@ -253,7 +253,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (e == null || e.Position == null || e.Position.Instrument == null || leadAccount == null)
                 return;
 
-            Account positionAccount = sender as Account;
+            Account positionAccount = sender as Account ?? e.Position.Account;
             if (positionAccount == null || positionAccount.Name != leadAccount.Name)
                 return;
 
