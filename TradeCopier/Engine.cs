@@ -19,6 +19,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         private AccountSelection leadAccount;
         private bool isRunning;
+        private bool isFlattenAllInProgress;
 
         public string CopierStatusText
         {
@@ -229,6 +230,9 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (!IsRunning || leadAccount == null)
                 return;
 
+            if (isFlattenAllInProgress)
+                return;
+
             if (execution == null || execution.Instrument == null)
                 return;
 
@@ -306,18 +310,27 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         public void FlattenAllManagedPositions()
         {
-            HashSet<Account> managedAccounts = new HashSet<Account>();
+            isFlattenAllInProgress = true;
 
-            if (leadAccount != null && leadAccount.Account != null)
-                managedAccounts.Add(leadAccount.Account);
+            try
+            {
+                HashSet<Account> managedAccounts = new HashSet<Account>();
 
-            foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled && f.Account != null))
-                managedAccounts.Add(follower.Account);
+                if (leadAccount != null && leadAccount.Account != null)
+                    managedAccounts.Add(leadAccount.Account);
 
-            foreach (Account account in managedAccounts)
-                FlattenAccountPositions(account);
+                foreach (AccountSelection follower in followerAccounts.Where(f => f.FollowEnabled && f.Account != null))
+                    managedAccounts.Add(follower.Account);
 
-            leadQuantityByInstrument.Clear();
+                foreach (Account account in managedAccounts)
+                    FlattenAccountPositions(account);
+
+                leadQuantityByInstrument.Clear();
+            }
+            finally
+            {
+                isFlattenAllInProgress = false;
+            }
         }
 
         private static void FlattenAccountPositions(Account account)
