@@ -485,7 +485,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
             string primary = order.OrderId;
             if (primary == null || primary.Length == 0)
-                primary = order.Id;
+                primary = order.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             if (primary == null || primary.Length == 0)
                 return null;
