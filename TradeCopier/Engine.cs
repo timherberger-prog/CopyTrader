@@ -295,7 +295,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (IsOpenOrderState(e.Order.OrderState))
             {
                 if (!replicatedLeadOrderKeys.Add(orderKey))
+                {
+                    SyncReplicatedLimitEntryOrder(e.Order, orderKey);
                     return;
+                }
 
                 ReplicateLimitEntryOrder(e.Order, orderKey);
                 return;
@@ -550,6 +553,11 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
 
         private void ReplicateLimitEntryOrder(Order leadOrder, string leadOrderKey)
         {
+            ReplicateLimitEntryOrder(leadOrder, leadOrderKey, true);
+        }
+
+        private void ReplicateLimitEntryOrder(Order leadOrder, string leadOrderKey, bool trackInstrumentCounter)
+        {
             if (leadOrder == null || leadOrder.Instrument == null)
                 return;
 
@@ -582,7 +590,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 followerOrdersByLeadOrderKey[leadOrderKey] = followerOrders;
 
                 string instrumentKey = leadOrder.Instrument.FullName;
-                if (instrumentKey != null && instrumentKey.Length > 0)
+                if (trackInstrumentCounter && instrumentKey != null && instrumentKey.Length > 0)
                 {
                     int activeCount = replicatedEntryLimitOrderCountByInstrument.ContainsKey(instrumentKey)
                         ? replicatedEntryLimitOrderCountByInstrument[instrumentKey]
@@ -590,6 +598,61 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                     replicatedEntryLimitOrderCountByInstrument[instrumentKey] = activeCount + 1;
                 }
             }
+        }
+
+        private void SyncReplicatedLimitEntryOrder(Order leadOrder, string leadOrderKey)
+        {
+            if (leadOrder == null || leadOrder.Instrument == null || leadOrderKey == null)
+                return;
+
+            List<Order> followerOrders;
+            if (!followerOrdersByLeadOrderKey.TryGetValue(leadOrderKey, out followerOrders) || followerOrders == null)
+            {
+                ReplicateLimitEntryOrder(leadOrder, leadOrderKey);
+                return;
+            }
+
+            List<Order> refreshedFollowerOrders = new List<Order>();
+            foreach (Order followerOrder in followerOrders)
+            {
+                if (followerOrder == null || followerOrder.Account == null)
+                    continue;
+
+                if (!IsOpenOrderState(followerOrder.OrderState) || !NeedsFollowerOrderRefresh(leadOrder, followerOrder))
+                {
+                    refreshedFollowerOrders.Add(followerOrder);
+                    continue;
+                }
+
+                followerOrder.Account.Cancel(new[] { followerOrder });
+
+                Order replacementOrder = SubmitFollowerOrder(
+                    followerOrder.Account,
+                    leadOrder.Instrument,
+                    leadOrder.OrderAction,
+                    leadOrder.Quantity,
+                    OrderType.Limit,
+                    leadOrder.LimitPrice,
+                    0,
+                    leadOrder.TimeInForce);
+
+                if (replacementOrder != null)
+                    refreshedFollowerOrders.Add(replacementOrder);
+            }
+
+            followerOrdersByLeadOrderKey[leadOrderKey] = refreshedFollowerOrders;
+        }
+
+        private static bool NeedsFollowerOrderRefresh(Order leadOrder, Order followerOrder)
+        {
+            if (leadOrder == null || followerOrder == null)
+                return false;
+
+            return followerOrder.OrderType != OrderType.Limit
+                || followerOrder.OrderAction != leadOrder.OrderAction
+                || followerOrder.Quantity != leadOrder.Quantity
+                || followerOrder.TimeInForce != leadOrder.TimeInForce
+                || Math.Abs(followerOrder.LimitPrice - leadOrder.LimitPrice) > 0.0000001;
         }
 
         private void CancelReplicatedFollowerOrders(string leadOrderKey)
