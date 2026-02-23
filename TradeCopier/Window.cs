@@ -148,7 +148,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             StackPanel footer = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 12, 0, 0)
             };
 
