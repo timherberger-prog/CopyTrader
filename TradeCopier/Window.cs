@@ -65,7 +65,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             GroupBox followerBox = new GroupBox { Header = "Follower Konten" };
             Grid.SetRow(followerBox, 2);
 
-            StackPanel followerPanel = new StackPanel();
+            Grid followerPanel = new Grid();
+            followerPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            followerPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            followerPanel.RowDefinitions.Add(new RowDefinition());
 
             CheckBox selectAllCheckBox = new CheckBox
             {
@@ -73,6 +76,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 Margin = new Thickness(8, 8, 8, 0),
                 Foreground = Brushes.White
             };
+            Grid.SetRow(selectAllCheckBox, 0);
             selectAllCheckBox.SetBinding(ToggleButton.IsCheckedProperty,
                 new Binding("SelectAllFollowers")
                 {
@@ -90,13 +94,14 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 Margin = new Thickness(20, 6, 20, 2),
                 Background = new SolidColorBrush(Color.FromRgb(85, 85, 85))
             };
+            Grid.SetRow(selectAllDivider, 1);
 
             ScrollViewer followerList = new ScrollViewer
             {
                 Margin = new Thickness(8),
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                MaxHeight = 220
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
             };
+            Grid.SetRow(followerList, 2);
 
             ItemsControl followerItems = new ItemsControl();
             followerItems.SetBinding(ItemsControl.ItemsSourceProperty, new Binding("SelectableFollowerAccounts"));
