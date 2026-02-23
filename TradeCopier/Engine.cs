@@ -461,7 +461,7 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 ? leadQuantityByInstrument[instrumentKey]
                 : 0;
 
-            if (execution.Order != null && IsLeadEntryLimitOrder(execution.Order))
+            if (execution.Order != null && WasReplicatedLeadEntryLimitOrder(execution.Order))
             {
                 int currentLeadQty = GetLeadPositionQuantity(instrumentKey);
                 leadQuantityByInstrument[instrumentKey] = currentLeadQty;
@@ -516,7 +516,21 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (order == null || order.OrderType != OrderType.Limit)
                 return false;
 
-            return order.OrderAction == OrderAction.Buy || order.OrderAction == OrderAction.SellShort;
+            return order.OrderAction == OrderAction.Buy
+                || order.OrderAction == OrderAction.Sell
+                || order.OrderAction == OrderAction.SellShort;
+        }
+
+        private bool WasReplicatedLeadEntryLimitOrder(Order order)
+        {
+            if (!IsLeadEntryLimitOrder(order))
+                return false;
+
+            string orderKey = GetLeadOrderKey(order);
+            if (orderKey == null)
+                return false;
+
+            return followerOrdersByLeadOrderKey.ContainsKey(orderKey);
         }
 
         private static string GetLeadOrderKey(Order order)
