@@ -511,14 +511,31 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 || state == OrderState.Rejected;
         }
 
-        private static bool IsLeadEntryLimitOrder(Order order)
+        private bool IsLeadEntryLimitOrder(Order order)
         {
             if (order == null || order.OrderType != OrderType.Limit)
                 return false;
 
-            return order.OrderAction == OrderAction.Buy
-                || order.OrderAction == OrderAction.Sell
-                || order.OrderAction == OrderAction.SellShort;
+            // Protection/Exit-Orders vom Lead dürfen nicht auf Follower repliziert werden.
+            // Besonders bei Short-Positionen kommt TP als Buy-Limit und würde sonst fälschlich kopiert.
+            if (order.OrderAction == OrderAction.Buy)
+                return !IsLeadInstrumentInMarketPosition(order.Instrument, MarketPosition.Short);
+
+            if (order.OrderAction == OrderAction.SellShort)
+                return true;
+
+            return false;
+        }
+
+        private bool IsLeadInstrumentInMarketPosition(Instrument instrument, MarketPosition marketPosition)
+        {
+            if (instrument == null || leadAccount == null || leadAccount.Account == null || leadAccount.Account.Positions == null)
+                return false;
+
+            Position position = leadAccount.Account.Positions
+                .FirstOrDefault(p => p != null && p.Instrument != null && p.Instrument.FullName == instrument.FullName);
+
+            return position != null && position.MarketPosition == marketPosition;
         }
 
         private bool WasReplicatedLeadEntryLimitOrder(Order order)
