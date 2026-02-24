@@ -24,7 +24,6 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
         private readonly Dictionary<string, List<Order>> followerOrdersByLeadOrderKey;
         private readonly Dictionary<string, int> replicatedEntryLimitOrderCountByInstrument;
         private readonly Dictionary<string, DateTime> suppressPositionReplicationUntilByInstrument;
-        private readonly Dictionary<string, DateTime> lastPositionReplicationAtByInstrument;
 
         private AccountSelection leadAccount;
         private bool isRunning;
@@ -50,7 +49,6 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             followerOrdersByLeadOrderKey = new Dictionary<string, List<Order>>(StringComparer.Ordinal);
             replicatedEntryLimitOrderCountByInstrument = new Dictionary<string, int>(StringComparer.Ordinal);
             suppressPositionReplicationUntilByInstrument = new Dictionary<string, DateTime>(StringComparer.Ordinal);
-            lastPositionReplicationAtByInstrument = new Dictionary<string, DateTime>(StringComparer.Ordinal);
             flattenAllSuppressionUntilByInstrument = new Dictionary<string, DateTime>(StringComparer.Ordinal);
 
             followerAccounts.CollectionChanged += FollowerAccountsChanged;
@@ -447,7 +445,6 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
                 return;
             }
 
-            lastPositionReplicationAtByInstrument[instrumentKey] = DateTime.UtcNow;
             ReplicateDirectionalTrade(instrument, delta);
         }
 
@@ -778,41 +775,10 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (liveDelta != 0)
                 return liveDelta;
 
-            if (WasRecentlyReplicatedFromPositionUpdate(instrumentKey))
-                return 0;
-
-            if (execution.Order == null)
-                return 0;
-
-            int filledQuantity = execution.Quantity;
-
-            switch (execution.Order.OrderAction)
-            {
-                case OrderAction.Buy:
-                case OrderAction.BuyToCover:
-                    return filledQuantity;
-                case OrderAction.Sell:
-                case OrderAction.SellShort:
-                    return -filledQuantity;
-                default:
-                    return 0;
-            }
-        }
-
-        private bool WasRecentlyReplicatedFromPositionUpdate(string instrumentKey)
-        {
-            if (instrumentKey == null || instrumentKey.Length == 0)
-                return false;
-
-            DateTime replicatedAt;
-            if (!lastPositionReplicationAtByInstrument.TryGetValue(instrumentKey, out replicatedAt))
-                return false;
-
-            if (DateTime.UtcNow - replicatedAt <= TimeSpan.FromSeconds(1))
-                return true;
-
-            lastPositionReplicationAtByInstrument.Remove(instrumentKey);
-            return false;
+            // Einige Provider liefern execution.Quantity nicht als inkrementellen Fill,
+            // wodurch Follower überfüllt werden können (z. B. 10000 -> 10021).
+            // Deshalb replizieren wir nur anhand der tatsächlich beobachteten Positionsänderung.
+            return 0;
         }
 
         private static int GetSignedQuantity(MarketPosition marketPosition, int quantity)
@@ -982,7 +948,6 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             followerOrdersByLeadOrderKey.Clear();
             replicatedEntryLimitOrderCountByInstrument.Clear();
             suppressPositionReplicationUntilByInstrument.Clear();
-            lastPositionReplicationAtByInstrument.Clear();
             followerAccounts.CollectionChanged -= FollowerAccountsChanged;
 
             foreach (AccountSelection selection in availableAccounts)
