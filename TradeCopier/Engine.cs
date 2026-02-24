@@ -521,8 +521,8 @@ namespace NinjaTrader.Custom.AddOns.TradeCopier
             if (order.OrderAction == OrderAction.Buy)
                 return !IsLeadInstrumentInMarketPosition(order.Instrument, MarketPosition.Short);
 
-            if (order.OrderAction == OrderAction.SellShort)
-                return true;
+            if (order.OrderAction == OrderAction.Sell || order.OrderAction == OrderAction.SellShort)
+                return !IsLeadInstrumentInMarketPosition(order.Instrument, MarketPosition.Long);
 
             return false;
         }
